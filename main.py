@@ -82,15 +82,15 @@ def do_heal(img_file):
     template_file = 'template/heal.png'
     pos, con = do_match(img_file, template_file)
 
-    if con > 0.8:
+    if con > 0.7:
         print(f"😀 Do heal {con:.2f} : {pos}")
         do_click(pos)
         # Heal button
-        time.sleep(0.2)
+        time.sleep(0.6)
         pos = calc_center((634, 1821), (921, 1947))
         do_click(pos)
         # Help button
-        time.sleep(0.2)
+        time.sleep(0.6)
         pos = calc_center((634, 1821), (921, 1947))
         do_click(pos)
     else:
