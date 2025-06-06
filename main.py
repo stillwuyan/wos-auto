@@ -3,9 +3,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 import subprocess
 import random
+import argparse
 import pathlib
 import time
-import sys
+import struct
 
 def calc_center(top_left, bottom_right):
     offset = 10
@@ -14,6 +15,8 @@ def calc_center(top_left, bottom_right):
     point = ((top_left[0]+bottom_right[0])//2 + h, (top_left[1]+bottom_right[1])//2 + v)
     return point 
 
+def read_png(img_file):
+    return cv.imread(img_file, 0)
 
 def draw_img(res, img, top_left, bottom_right):
     img_draw = img.copy()
@@ -30,11 +33,9 @@ def draw_img(res, img, top_left, bottom_right):
     plt.show()
     return point
 
-def do_match(img_file, tpl_file, debug = False):
+def do_match(img, tpl_file, debug = False):
     if debug:
         start = time.perf_counter()
-
-    img = cv.imread(img_file, 0)
 
     template = cv.imread(tpl_file, 0)
     w, h = template.shape[::-1]
@@ -65,22 +66,74 @@ def do_match(img_file, tpl_file, debug = False):
         point = calc_center(top_left, bottom_right)
     return point, max_val
 
-def do_capture():
+def do_capture(debug=False):
+    if debug:
+        start = time.perf_counter()
+
     pathlib.Path('./output').mkdir(parents=True, exist_ok=True)
     output = './output/capture.png'
     command = ['adb', 'exec-out', 'screencap', '-p']
     with open(output, 'wb') as f:
         process = subprocess.run(command, stdout=f)
-    return output
 
-def do_click(pos, debug = False):
+    if debug:
+        end = time.perf_counter()
+        print(f"capture time: {end - start:.6f}s")
+    return read_png(output)
+
+def do_capture_raw(debug=False):
+    if debug:
+        start = time.perf_counter()
+
+    command = ['adb', 'exec-out', 'screencap']
+    process = subprocess.run(command, stdout=subprocess.PIPE)
+    raw_data = process.stdout
+
+    if debug:
+        end = time.perf_counter()
+        print(f"capture time: {end - start:.6f}s")
+
+    if len(raw_data) > 16:
+        header = raw_data[:16]
+        width, height, pixel_format, reserved = struct.unpack('<IIII', header)
+        data = raw_data[16:]
+    else:
+        print('capture failed')
+        data = raw_data
+        pixel_format = 0
+
+    format_mapping = {
+        1: 'RGBA_8888',
+        2: 'RGBX_8888',
+        3: 'RGB_888',
+        4: 'RGB_565',
+        0: 'unknown'
+    }
+    if format_mapping[pixel_format] == 'RGBA_8888':
+        arr = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 4))
+        img = cv.cvtColor(arr, cv.COLOR_RGBA2GRAY)
+    elif format_mapping[pixel_format] == 'RGBX_8888':
+        arr = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 4))
+        img = cv.cvtColor(arr[:, :, :3], cv.COLOR_RGB2GRAY)
+    elif format_mapping[pixel_format] == 'RGB_888':
+        arr = np.frombuffer(data, dtype=np.uint8).reshape((height, width, 3))
+        img = cv.cvtColor(arr, cv.COLOR_RGB2GRAY)
+    elif format_mapping[pixel_format] == 'RGB_565':
+        arr = np.frombuffer(data, dtype=np.uint8).reshape((height, width))
+        img = cv.cvtColor(arr, cv.COLOR_BGR5652GRAY)
+    else:
+        img = None
+
+    return img
+
+def do_click(pos, debug=False):
     command = ['adb', 'shell', 'input', 'tap', str(pos[0]), str(pos[1])]
     # print(f'cmd: {" ".join(command)}')
     subprocess.run(command)
 
-def do_heal(img_file):
+def do_heal(img):
     template_file = 'template/heal.png'
-    pos, con = do_match(img_file, template_file)
+    pos, con = do_match(img, template_file)
 
     if con > 0.7:
         print(f"😀 Do heal {con:.2f} : {pos}")
@@ -96,9 +149,9 @@ def do_heal(img_file):
     else:
         print(f"😢 No heal {con:.2f} : {pos}")
 
-def do_help(img_file):
+def do_help(img):
     template_file = 'template/help.png'
-    pos, con = do_match(img_file, template_file)
+    pos, con = do_match(img, template_file)
 
     if con > 0.8:
         print(f"😀 Do help {con:.2f} : {pos}")
@@ -109,47 +162,49 @@ def do_help(img_file):
 def test_heal():
     img_file = 'template/heal_screenshot.png'
     template_file = 'template/heal.png'
-    do_match(img_file, template_file, True)
+    do_match(read_png(img_file), template_file, True)
 
     img_file = 'template/heal_btn_screenshot.png'
     template_file = 'template/heal_btn.png'
-    do_match(img_file, template_file, True)
+    do_match(read_png(img_file), template_file, True)
 
 def test_help():
     img_file = 'template/help_screenshot.png'
     template_file = 'template/help.png'
-    do_match(img_file, template_file, True)
+    do_match(read_png(img_file), template_file, True)
 
 def test_capture():
-    img_file = do_capture()
+    img = do_capture_raw(True)
+    # img = do_capture(True)
 
     template_file = 'template/heal.png'
-    do_match(img_file, template_file, True)
+    do_match(img, template_file, True)
 
     template_file = 'template/help.png'
-    do_match(img_file, template_file, True)
+    do_match(img, template_file, True)
 
-def main():
+def main(interval):
     try:
         while True:
-            img_file = do_capture()
-            do_help(img_file)
-            do_heal(img_file)
-            time.sleep(1)
+            img = do_capture_raw()
+            do_help(img)
+            do_heal(img)
+            time.sleep(interval)
     except KeyboardInterrupt:
         pass
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        option = sys.argv[1]
-    else:
-        option = 'default'
+    parser = argparse.ArgumentParser('python main.py')
+    parser.add_argument('-t', '--test', type=str, choices=['heal', 'help', 'capture'], help='Test command')
+    parser.add_argument('-i', '--interval', type=float, default=1.0, help='Set cycle interval (seconds)')
 
-    if option == 'heal':
-        test_heal()
-    elif option == 'help':
-        test_help()
-    elif option == 'capture':
-        test_capture()
-    else:
-        main() 
+    args = parser.parse_args()
+    match args.test:
+        case 'heal':
+            test_heal()
+        case 'help':
+            test_help()
+        case 'capture':
+            test_capture()
+        case _:
+            main(args.interval)
