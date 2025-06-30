@@ -36,7 +36,6 @@ def match_tpl(img, tpl, area=None, mid=1, offset=(0,0), debug=False):
         x, y, w, h = 0, 0, img.shape[1], img.shape[0]
         area_img = img
 
-    print(area_img.shape, tpl_img.shape)
     # Apply template Matching
     ref = cv.matchTemplate(area_img, tpl_img, method)
     min_val, max_val, min_loc, max_loc = cv.minMaxLoc(ref)

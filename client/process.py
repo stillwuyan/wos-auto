@@ -52,7 +52,6 @@ class Proc:
         tpl = template.config[self.target]['chat']['file']
         area = template.config[self.target]['chat']['area']
         pos, con = image.match_tpl(img, tpl, area=area, offset=offset)
-        print(pos, con)
         if con > 0.7:
             print(f"😢 In chat {con:.2f} : {pos}")
             adb.click(pos)
