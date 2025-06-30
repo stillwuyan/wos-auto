@@ -46,7 +46,8 @@ class MjpegServer(private val port: Int) {
     @Volatile
     private var paddingSaved: Int = 0
 
-    private var useJpeg: Boolean = false;
+    private var useJpeg: Boolean = false
+    private var frameInterval: Int = 100
 
     private val reusableBuffer = ThreadLocal<ByteBuffer>()
 
@@ -79,6 +80,10 @@ class MjpegServer(private val port: Int) {
 
     fun updateJpeg(flag: Boolean) {
         useJpeg = flag
+    }
+
+    fun updateInterval(interval: Int) {
+        frameInterval = interval
     }
 
     private fun runServer() {
@@ -145,7 +150,7 @@ class MjpegServer(private val port: Int) {
             while (isRunning && !client.isClosed) {
                 val frame = currentFrame
                 if (frame == null) {
-                    Thread.sleep(50)
+                    Thread.sleep((frameInterval / 3).toLong())
                     continue
                 }
 
@@ -159,7 +164,7 @@ class MjpegServer(private val port: Int) {
                 output.flush()
 
                 // Control frame rate (e.g. 15 FPS)
-                Thread.sleep(66)
+                Thread.sleep(frameInterval.toLong())
             }
         } catch (e: Exception) {
             Log.e("MjpegServer", "Client handling error", e)

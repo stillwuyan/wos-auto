@@ -14,6 +14,7 @@ import android.widget.CheckBox
 import android.widget.Spinner
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.material.slider.Slider
 
 class MainActivity : AppCompatActivity() {
     private companion object {
@@ -21,22 +22,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var projectionManager: MediaProjectionManager
-    private lateinit var statusText: TextView
 
     private lateinit var screenCaptureLauncher: ActivityResultLauncher<Intent>
     private var runningFlag: Boolean = false
     private var screenRatio: Int = 1
+    private var frameInterval: Int = 100
+    private var useJpg: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        statusText = findViewById(R.id.status_text)
-        val startButton = findViewById<Button>(R.id.start_button)
-        val typeCheckBox = findViewById<CheckBox>(R.id.type_jpeg)
-        val ratioSpinner: Spinner = findViewById(R.id.screen_ratio)
+        val sliderInterval = findViewById<Slider>(R.id.slider_interval)
+        val sliderText = findViewById<TextView>(R.id.text_interval)
+        sliderInterval.addOnChangeListener { _, value, _ ->
+            sliderText.text = "   Interval: ${value.toInt()}"
+            frameInterval = value.toInt()
+        }
 
+        val ratioSpinner: Spinner = findViewById(R.id.screen_ratio)
         val numbers = arrayOf("1", "2", "4")
         val adapter = ArrayAdapter(
             this,
@@ -44,10 +49,8 @@ class MainActivity : AppCompatActivity() {
             numbers
         )
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-
         ratioSpinner.adapter = adapter
         ratioSpinner.setSelection(0)
-
         ratioSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 screenRatio = parent?.getItemAtPosition(position).toString().toInt(10)
@@ -55,15 +58,22 @@ class MainActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
+        val typeCheckBox = findViewById<CheckBox>(R.id.type_jpeg)
+        typeCheckBox.setOnCheckedChangeListener { _, isChecked ->
+            useJpg = isChecked
+        }
+
         projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         screenCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult())
         { result ->
             if (result.resultCode == RESULT_OK && result.data != null) {
-                startCaptureService(result.resultCode, result.data!!, typeCheckBox.isChecked)
+                startCaptureService(result.resultCode, result.data!!)
                 moveTaskToBack(true)
             }
         }
+
+        val startButton = findViewById<Button>(R.id.start_button)
 
         startButton.setOnClickListener {
             if (runningFlag) {
@@ -83,12 +93,13 @@ class MainActivity : AppCompatActivity() {
         screenCaptureLauncher.launch(captureIntent)
     }
 
-    private fun startCaptureService(resultCode: Int, data: Intent, jpeg: Boolean) {
+    private fun startCaptureService(resultCode: Int, data: Intent) {
         val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
             putExtra("result_code", resultCode)
             putExtra("data", data)
-            putExtra("jpeg", jpeg)
+            putExtra("jpeg", useJpg)
             putExtra("ratio", screenRatio)
+            putExtra("interval", frameInterval)
         }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {

@@ -47,4 +47,5 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation("androidx.activity:activity-ktx:1.8.0")
+    implementation("com.google.android.material:material:1.9.0")
 }

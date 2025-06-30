@@ -24,7 +24,7 @@ class ScreenCaptureService : Service() {
 
     private var screenRatio: Int = 1
     private var lastFrameTime: Long = 0
-    private val FRAME_INTERVAL_MS: Long = 33
+    private var frameInterval: Int = 100
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -44,7 +44,10 @@ class ScreenCaptureService : Service() {
             val data = intent.getParcelableExtra<Intent>("data", Intent::class.java)
             val flag = intent.getBooleanExtra("jpeg", false)
             screenRatio = intent.getIntExtra("ratio", 1)
+            frameInterval = intent.getIntExtra("interval", 100)
+
             mjpegServer.updateJpeg(flag)
+            mjpegServer.updateInterval(frameInterval)
 
             if (resultCode == -1 && data != null) {
                 val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -100,7 +103,7 @@ class ScreenCaptureService : Service() {
             val image = reader.acquireLatestImage()
             if (image != null) {
                 val now = System.currentTimeMillis()
-                if (now - lastFrameTime >= FRAME_INTERVAL_MS) {
+                if (now - lastFrameTime >= frameInterval) {
                     val bitmap = imageToBitmap(image)
                     mjpegServer.updateFrame(bitmap)
                     lastFrameTime = now
