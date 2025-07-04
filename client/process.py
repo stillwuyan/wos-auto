@@ -38,16 +38,21 @@ class Proc:
                 print(f'Unknown source: {self.source}')
                 return
 
+            help_time = time.time() * 1000
+            chat_time = time.time() * 1000
             for img in img_gen:
-                action_cnt = 0
-                action_cnt += self.do_heal(img)
-                action_cnt += self.do_help(img)
-                if action_cnt < 1:
-                    self.do_chat(img)
+                heal_ret = self.do_heal(img)
+                help_ret, help_time = self.do_help(img, help_time)
+                if (heal_ret + help_ret) < 1:
+                    chat_time = self.do_chat(img, chat_time)
         except KeyboardInterrupt:
             pass
 
-    def do_chat(self, img):
+    def do_chat(self, img, prev):
+        current = time.time() * 1000
+        if (current - prev) < 1500:
+            return prev
+
         offset = (-50, 0)
         tpl = template.config[self.target]['chat']['file']
         area = template.config[self.target]['chat']['area']
@@ -56,17 +61,24 @@ class Proc:
             print(f"😢 In chat {con:.2f} : {pos}")
             adb.click(pos)
             self.state = State.IDLE
+            return current
+        else:
+            return prev
 
-    def do_help(self, img):
+    def do_help(self, img, prev):
+        current = time.time() * 1000
+        if (current - prev) < 2000:
+            return 0, prev
+
         tpl = template.config[self.target]['help']['file']
         area = template.config[self.target]['help']['area']
         pos, con = image.match_tpl(img, tpl, area=area)
         if con > 0.8:
             print(f"😀 Do help {con:.2f} : {pos}")
             adb.click(pos)
-            return 1
+            return 1, current
         else:
-            return 0
+            return 0, prev
 
     def do_heal(self, img):
         match self.state:
